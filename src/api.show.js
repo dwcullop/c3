@@ -1,4 +1,6 @@
-c3_chart_fn.show = function (targetIds, options) {
+import { Chart } from './core';
+
+Chart.prototype.show = function (targetIds, options) {
     var $$ = this.internal, targets;
 
     targetIds = $$.mapToTargetIds(targetIds);
@@ -8,6 +10,7 @@ c3_chart_fn.show = function (targetIds, options) {
     targets = $$.svg.selectAll($$.selectorTargets(targetIds));
 
     targets.transition()
+        .style('display', 'initial', 'important')
         .style('opacity', 1, 'important')
         .call($$.endall, function () {
             targets.style('opacity', null).style('opacity', 1);
@@ -20,7 +23,7 @@ c3_chart_fn.show = function (targetIds, options) {
     $$.redraw({withUpdateOrgXDomain: true, withUpdateXDomain: true, withLegend: true});
 };
 
-c3_chart_fn.hide = function (targetIds, options) {
+Chart.prototype.hide = function (targetIds, options) {
     var $$ = this.internal, targets;
 
     targetIds = $$.mapToTargetIds(targetIds);
@@ -33,6 +36,7 @@ c3_chart_fn.hide = function (targetIds, options) {
         .style('opacity', 0, 'important')
         .call($$.endall, function () {
             targets.style('opacity', null).style('opacity', 0);
+            targets.style('display', 'none');
         });
 
     if (options.withLegend) {
@@ -42,7 +46,7 @@ c3_chart_fn.hide = function (targetIds, options) {
     $$.redraw({withUpdateOrgXDomain: true, withUpdateXDomain: true, withLegend: true});
 };
 
-c3_chart_fn.toggle = function (targetIds, options) {
+Chart.prototype.toggle = function (targetIds, options) {
     var that = this, $$ = this.internal;
     $$.mapToTargetIds(targetIds).forEach(function (targetId) {
         $$.isTargetToShow(targetId) ? that.hide(targetId, options) : that.show(targetId, options);

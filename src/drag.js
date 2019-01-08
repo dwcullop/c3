@@ -1,10 +1,13 @@
-c3_chart_internal_fn.drag = function (mouse) {
+import CLASS from './class';
+import { ChartInternal } from './core';
+import { getPathBox } from './util';
+
+ChartInternal.prototype.drag = function (mouse) {
     var $$ = this, config = $$.config, main = $$.main, d3 = $$.d3;
     var sx, sy, mx, my, minX, maxX, minY, maxY;
 
     if ($$.hasArcType()) { return; }
-    if (! config.data_selection_enabled) { return; } // do nothing if not selectable
-    if (config.zoom_enabled && ! $$.zoom.altDomain) { return; } // skip if zoomable because of conflict drag dehavior
+    if (!config.data_selection_enabled) { return; } // do nothing if not selectable
     if (!config.data_selection_multiple) { return; } // skip when single selection because drag is used for multiple selection
 
     sx = $$.dragStart[0];
@@ -56,7 +59,7 @@ c3_chart_internal_fn.drag = function (mouse) {
         });
 };
 
-c3_chart_internal_fn.dragstart = function (mouse) {
+ChartInternal.prototype.dragstart = function (mouse) {
     var $$ = this, config = $$.config;
     if ($$.hasArcType()) { return; }
     if (! config.data_selection_enabled) { return; } // do nothing if not selectable
@@ -67,7 +70,7 @@ c3_chart_internal_fn.dragstart = function (mouse) {
     $$.dragging = true;
 };
 
-c3_chart_internal_fn.dragend = function () {
+ChartInternal.prototype.dragend = function () {
     var $$ = this, config = $$.config;
     if ($$.hasArcType()) { return; }
     if (! config.data_selection_enabled) { return; } // do nothing if not selectable

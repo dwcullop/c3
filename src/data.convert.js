@@ -1,45 +1,37 @@
-c3_chart_internal_fn.convertUrlToData = function (url, mimeType, headers, keys, done) {
-    var $$ = this, type = mimeType ? mimeType : 'csv';
-    var req = $$.d3.xhr(url);
-    if (headers) {
-        Object.keys(headers).forEach(function (header) {
-            req.header(header, headers[header]);
-        });
+import { ChartInternal } from './core';
+import { isValue, isUndefined, isDefined, notEmpty, isArray } from './util';
+
+ChartInternal.prototype.convertUrlToData = function (url, mimeType, headers, keys, done) {
+    var $$ = this, type = mimeType ? mimeType : 'csv', f, converter;
+
+    if (type === 'json') {
+        f = $$.d3.json;
+        converter = $$.convertJsonToData;
+    } else if (type === 'tsv') {
+        f = $$.d3.tsv;
+        converter = $$.convertXsvToData;
+    } else {
+        f = $$.d3.csv;
+        converter = $$.convertXsvToData;
     }
-    req.get(function (error, data) {
-        var d;
-        if (!data) {
-            throw new Error(error.responseURL + ' ' + error.status + ' (' + error.statusText + ')');
-        }
-        if (type === 'json') {
-            d = $$.convertJsonToData(JSON.parse(data.response), keys);
-        } else if (type === 'tsv') {
-            d = $$.convertTsvToData(data.response);
-        } else {
-            d = $$.convertCsvToData(data.response);
-        }
-        done.call($$, d);
+
+    f(url, headers).then(function (data) {
+        done.call($$, converter.call($$, data, keys));
+    }).catch(function (error) {
+        throw error;
     });
 };
-c3_chart_internal_fn.convertXsvToData = function (xsv, parser) {
-    var rows = parser.parseRows(xsv), d;
-    if (rows.length === 1) {
-        d = [{}];
-        rows[0].forEach(function (id) {
-            d[0][id] = null;
-        });
+ChartInternal.prototype.convertXsvToData = function (xsv) {
+    var keys = xsv.columns, rows = xsv;
+    if (rows.length === 0) {
+        return { keys, rows: [ keys.reduce((row, key) => Object.assign(row, { [key]: null }), {}) ] };
     } else {
-        d = parser.parse(xsv);
+        // [].concat() is to convert result into a plain array otherwise
+        // test is not happy because rows have properties.
+        return { keys, rows: [].concat(xsv) };
     }
-    return d;
 };
-c3_chart_internal_fn.convertCsvToData = function (csv) {
-    return this.convertXsvToData(csv, this.d3.csv);
-};
-c3_chart_internal_fn.convertTsvToData = function (tsv) {
-    return this.convertXsvToData(tsv, this.d3.tsv);
-};
-c3_chart_internal_fn.convertJsonToData = function (json, keys) {
+ChartInternal.prototype.convertJsonToData = function (json, keys) {
     var $$ = this,
         new_rows = [], targetKeys, data;
     if (keys) { // when keys specified, json would be an array that includes objects
@@ -71,7 +63,7 @@ c3_chart_internal_fn.convertJsonToData = function (json, keys) {
     }
     return data;
 };
-c3_chart_internal_fn.findValueInJson = function (object, path) {
+ChartInternal.prototype.findValueInJson = function (object, path) {
     path = path.replace(/\[(\w+)\]/g, '.$1'); // convert indexes to properties (replace [] with .)
     path = path.replace(/^\./, '');           // strip a leading dot
     var pathArray = path.split('.');
@@ -85,41 +77,76 @@ c3_chart_internal_fn.findValueInJson = function (object, path) {
     }
     return object;
 };
-c3_chart_internal_fn.convertRowsToData = function (rows) {
-    var keys = rows[0], new_row = {}, new_rows = [], i, j;
-    for (i = 1; i < rows.length; i++) {
-        new_row = {};
-        for (j = 0; j < rows[i].length; j++) {
+
+/**
+ * Converts the rows to normalized data.
+ * @param {any[][]} rows The row data
+ * @return {Object}
+ */
+ChartInternal.prototype.convertRowsToData = (rows) => {
+    const newRows = [];
+    const keys = rows[0];
+
+    for (let i = 1; i < rows.length; i++) {
+        const newRow = {};
+        for (let j = 0; j < rows[i].length; j++) {
             if (isUndefined(rows[i][j])) {
                 throw new Error("Source data is missing a component at (" + i + "," + j + ")!");
             }
-            new_row[keys[j]] = rows[i][j];
+            newRow[keys[j]] = rows[i][j];
         }
-        new_rows.push(new_row);
+        newRows.push(newRow);
     }
-    return new_rows;
+    return { keys, rows: newRows };
 };
-c3_chart_internal_fn.convertColumnsToData = function (columns) {
-    var new_rows = [], i, j, key;
-    for (i = 0; i < columns.length; i++) {
-        key = columns[i][0];
-        for (j = 1; j < columns[i].length; j++) {
-            if (isUndefined(new_rows[j - 1])) {
-                new_rows[j - 1] = {};
+
+/**
+ * Converts the columns to normalized data.
+ * @param {any[][]} columns The column data
+ * @return {Object}
+ */
+ChartInternal.prototype.convertColumnsToData = (columns) => {
+    const newRows = [];
+    const keys = [];
+
+    for (let i = 0; i < columns.length; i++) {
+        const key = columns[i][0];
+        for (let j = 1; j < columns[i].length; j++) {
+            if (isUndefined(newRows[j - 1])) {
+                newRows[j - 1] = {};
             }
             if (isUndefined(columns[i][j])) {
                 throw new Error("Source data is missing a component at (" + i + "," + j + ")!");
             }
-            new_rows[j - 1][key] = columns[i][j];
+            newRows[j - 1][key] = columns[i][j];
         }
+        keys.push(key);
     }
-    return new_rows;
+
+    return { keys, rows: newRows };
 };
-c3_chart_internal_fn.convertDataToTargets = function (data, appendXs) {
-    var $$ = this, config = $$.config,
-        ids = $$.d3.keys(data[0]).filter($$.isNotX, $$),
-        xs = $$.d3.keys(data[0]).filter($$.isX, $$),
-        targets;
+
+/**
+ * Converts the data format into the target format.
+ * @param {!Object} data
+ * @param {!Array} data.keys Ordered list of target IDs.
+ * @param {!Array} data.rows Rows of data to convert.
+ * @param {boolean} appendXs True to append to $$.data.xs, False to replace.
+ * @return {!Array}
+ */
+ChartInternal.prototype.convertDataToTargets = function (data, appendXs) {
+    var $$ = this, config = $$.config, targets, ids, xs, keys;
+
+    // handles format where keys are not orderly provided
+    if (isArray(data)) {
+        keys = Object.keys(data[ 0 ]);
+    } else {
+        keys = data.keys;
+        data = data.rows;
+    }
+
+    ids = keys.filter($$.isNotX, $$);
+    xs = keys.filter($$.isX, $$);
 
     // save x for update data by load when custom x and c3.x API
     ids.forEach(function (id) {
@@ -166,7 +193,7 @@ c3_chart_internal_fn.convertDataToTargets = function (data, appendXs) {
                 var xKey = $$.getXKey(id), rawX = d[xKey],
                     value = d[id] !== null && !isNaN(d[id]) ? +d[id] : null, x;
                 // use x as categories if custom x and categorized
-                if ($$.isCustomX() && $$.isCategorized() && index === 0 && !isUndefined(rawX)) {
+                if ($$.isCustomX() && $$.isCategorized() && !isUndefined(rawX)) {
                     if (index === 0 && i === 0) {
                         config.axis_x_categories = [];
                     }

@@ -1,4 +1,7 @@
-c3_chart_fn.groups = function (groups) {
+import { Chart } from './core';
+import { isUndefined } from './util';
+
+Chart.prototype.groups = function (groups) {
     var $$ = this.internal, config = $$.config;
     if (isUndefined(groups)) { return config.data_groups; }
     config.data_groups = groups;

@@ -27,20 +27,35 @@ describe('c3 chart', function () {
             expect(svg).not.toBeNull();
         });
 
-        it('should set 3rd party property to Function', function () {
-            Function.prototype.$extIsFunction = true;
-            expect(true).toBeTruthy();
+        it('should bind to window focus event', done => {
+            const addEventListener = window.addEventListener;
+            window.addEventListener = (event, handler) => {
+                if (event === 'focus') {
+                    setTimeout(() => {
+                      expect(handler).toBe(chart.internal.windowFocusHandler);
+                      window.addEventListener = addEventListener; // restore the original
+                      done();
+                    }, 10);
+                }
+            };
+            chart = window.initChart(chart, args, () => {});
         });
 
-        it('should be created even if 3rd party property has been set', function () {
-            var svg = d3.select('#chart svg');
-            expect(svg).not.toBeNull();
-        });
+        describe('should set 3rd party property to Function', function () {
+            beforeAll(function () {
+                Function.prototype.$extIsFunction = true;
+            });
 
-        it('should be created with a custom class', function () {
-            var svg = d3.select('#chart svg');
-            expect(svg.attr('class')).not.toBeNull();
-            expect(svg.attr('class')).toBe('customclass');
+            it('should be created even if 3rd party property has been set', function () {
+                var svg = d3.select('#chart svg');
+                expect(svg).not.toBeNull();
+            });
+
+            it('should be created with a custom class', function () {
+                var svg = d3.select('#chart svg');
+                expect(svg.attr('class')).not.toBeNull();
+                expect(svg.attr('class')).toBe('customclass');
+            });
         });
     });
 
@@ -58,14 +73,44 @@ describe('c3 chart', function () {
 
     });
 
+    describe('call resize and resized callbacks', function () {
+        beforeAll(function () {
+            args.bindto = '#chart';
+            args.axis = {
+                rotated: true
+            };
+            args.resize_var = false;
+            args.resized_var = false;
+
+            args.onresize = function () {
+                args.resize_var = true;
+            };
+            args.onresized = function () {
+                args.resized_var = true;
+            };
+
+        });
+
+        it('arbitrary parameters should be false before resize', function () {
+            expect(args.resize_var).toBe(false);
+            expect(args.resized_var).toBe(false);
+        });
+
+        it('arbitrary parameters should be true after resize', function () {
+            window.dispatchEvent(new Event('resize'));
+            expect(args.resize_var).toBe(true);
+            expect(args.resized_var).toBe(true);
+        });
+    });
+
     describe('bindto', function () {
 
         describe('selector', function () {
-            it('update args', function () {
+            beforeAll(function () {
                 d3.select('#chart').html('');
                 args.bindto = '#chart';
-                expect(true).toBeTruthy();
             });
+
             it('should be created', function () {
                 var svg = d3.select('#chart svg');
                 expect(svg.size()).toBe(1);
@@ -73,10 +118,9 @@ describe('c3 chart', function () {
         });
 
         describe('d3.selection object', function () {
-            it('update args', function () {
+            beforeAll(function () {
                 d3.select('#chart').html('');
                 args.bindto = d3.select('#chart');
-                expect(true).toBeTruthy();
             });
             it('should be created', function () {
                 var svg = d3.select('#chart svg');
@@ -85,11 +129,11 @@ describe('c3 chart', function () {
         });
 
         describe('null', function () {
-            it('update args', function () {
+            beforeAll(function () {
                 d3.select('#chart').html('');
                 args.bindto = null;
-                expect(true).toBeTruthy();
             });
+
             it('should not be created', function () {
                 var svg = d3.select('#chart svg');
                 expect(svg.size()).toBe(0);
@@ -97,22 +141,33 @@ describe('c3 chart', function () {
         });
 
         describe('empty string', function () {
-            it('update args', function () {
+            beforeAll(function () {
                 d3.select('#chart').html('');
                 args.bindto = '';
-                expect(true).toBeTruthy();
             });
+
             it('should not be created', function () {
                 var svg = d3.select('#chart svg');
                 expect(svg.size()).toBe(0);
             });
         });
+        describe('bind to selector with rotated axis', function () {
+            beforeAll(function () {
+                args.bindto = '#chart';
+                args.axis = {
+                    rotated: true
+                };
+            });
 
+            it('should be created', function () {
+                var svg = d3.select('#chart svg');
+                expect(svg.size()).toBe(1);
+            });
+        });
     });
 
     describe('empty data', function () {
-
-        it('should upaate args for empty data', function () {
+        beforeAll(function () {
             args = {
                 data: {
                     columns: [
@@ -121,7 +176,6 @@ describe('c3 chart', function () {
                     ]
                 }
             };
-            expect(true).toBeTruthy();
         });
 
         it('should generate a chart', function () {
@@ -129,30 +183,30 @@ describe('c3 chart', function () {
             expect(ticks.size()).toBe(0);
         });
 
-        it('should upaate args for empty data', function () {
-            args = {
-                data: {
-                    x: 'x',
-                    columns: [
-                        ['x'],
-                        ['data1'],
-                        ['data2']
-                    ]
-                },
-                axis: {
-                    x: {
-                        type: 'timeseries'
+        describe('more empty data', function () {
+            beforeAll(function () {
+                args = {
+                    data: {
+                        x: 'x',
+                        columns: [
+                            ['x'],
+                            ['data1'],
+                            ['data2']
+                        ]
+                    },
+                    axis: {
+                        x: {
+                            type: 'timeseries'
+                        }
                     }
-                }
-            };
-            expect(true).toBeTruthy();
-        });
+                };
+            });
 
-        it('should generate a chart', function () {
-            var ticks = chart.internal.main.select('.c3-axis-x').selectAll('g.tick');
-            expect(ticks.size()).toBe(0);
+            it('should generate a chart', function () {
+                var ticks = chart.internal.main.select('.c3-axis-x').selectAll('g.tick');
+                expect(ticks.size()).toBe(0);
+            });
         });
-
     });
-
 });
+
